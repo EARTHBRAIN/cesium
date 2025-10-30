@@ -730,7 +730,7 @@ PrimitivePipeline.unpackCombineGeometryParameters = function (
 ) {
   const instances = unpackInstancesForCombine(packedParameters.packedInstances);
   const createGeometryResults = packedParameters.createGeometryResults;
-  const length = createGeometryResults.length;
+  const length = createGeometryResults?.length ?? 0;
   let instanceIndex = 0;
 
   for (let resultIndex = 0; resultIndex < length; resultIndex++) {

@@ -8,6 +8,7 @@ import FeatureDetection from "./FeatureDetection.js";
 import isCrossOriginUrl from "./isCrossOriginUrl.js";
 import Resource from "./Resource.js";
 import RuntimeError from "./RuntimeError.js";
+import Matrix4 from "./Matrix4.js";
 
 function canTransferArrayBuffer() {
   if (!defined(TaskProcessor._canTransferArrayBuffer)) {
@@ -234,15 +235,65 @@ async function runTask(processor, parameters, transferableObjects) {
     );
   });
 
-  processor._worker.postMessage(
-    {
-      id: id,
-      baseUrl: buildModuleUrl.getCesiumBaseUrl().url,
-      parameters: parameters,
-      canTransferArrayBuffer: canTransfer,
-    },
-    transferableObjects,
-  );
+  // processor._worker.postMessage(
+  //   {
+  //     id: id,
+  //     baseUrl: buildModuleUrl.getCesiumBaseUrl().url,
+  //     parameters: parameters,
+  //     canTransferArrayBuffer: canTransfer,
+  //   },
+  //   transferableObjects,
+  // );
+  const parametersToWorker = {};
+  for (const [key, value] of Object.entries(parameters)) {
+    try {
+      parametersToWorker[key] = structuredClone(value);
+    } catch (error) {
+      console.log("DEBUG LOG- error clonning key", key, value);
+      if (key === "modelMatrix") {
+        parametersToWorker[key] = new Matrix4.fromArray(
+          Matrix4.toArray(parameters[key]),
+        );
+      }
+    }
+  }
+  try {
+    processor._worker.postMessage(
+      {
+        id: id,
+        baseUrl: buildModuleUrl.getCesiumBaseUrl().url,
+        parameters: parametersToWorker,
+        canTransferArrayBuffer: canTransfer,
+      },
+      transferableObjects,
+    );
+  } catch (error) {
+    console.error("🔍 DataCloneError detected in runTask!");
+    console.error("Error:", error);
+    console.error("Parameters:", parameters);
+    console.error("Parameters keys:", Object.keys(parameters));
+    console.error("Transferable objects:", transferableObjects);
+
+    // Try to identify which parameter is causing the issue
+    for (const key in parameters) {
+      if (parameters.hasOwnProperty(key)) {
+        const value = parameters[key];
+        console.error(`Checking parameter '${key}':`, value);
+
+        if (Array.isArray(value)) {
+          console.error(`  - '${key}' is an array with length ${value.length}`);
+          if (value.length > 0) {
+            console.error(`  - First element type:`, typeof value[0]);
+            console.error(`  - First element:`, value[0]);
+          }
+        } else {
+          console.error(`  - '${key}' type:`, typeof value);
+        }
+      }
+    }
+
+    throw error;
+  }
 
   return promise;
 }
